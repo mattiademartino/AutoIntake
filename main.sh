@@ -5,10 +5,12 @@ dx=0.001
 soglia=10
 modulo=1000
 
-# Inizializza i parametri (usa float)
-a=0.0
-b=0.0
-c=0.0
+# Inizializza i parametri con valori di default
+a=${1:-0.0}
+b=${2:-0.0}
+c=${3:-0.0}
+
+echo "Parametri iniziali: a=$a, b=$b, c=$c"
 
 # Calcola L 
 L=$(python3 calculate_L.py)
