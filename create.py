@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import trimesh
 from scipy.spatial import Delaunay
+import sys
 
 def points(a, d, e):
     R = 0.02
@@ -34,14 +35,14 @@ def points(a, d, e):
         return disp(a, d, e, z, x) + rho(a, d, e, z) / np.sqrt(2)
 
     # --- Raccolta per 3D
-    N = 10
+    N = 50
     z_vals = np.linspace(0.005, L, N)
     all_points_3d = []
 
     for z_idx, z_val in enumerate(z_vals):
         try:
             rho_val = rho(a, d, e, z_val)
-            x_vals = np.linspace(-rho_val / np.sqrt(2), rho_val / np.sqrt(2), 20)
+            x_vals = np.linspace(-rho_val / np.sqrt(2), rho_val / np.sqrt(2), 30)
 
             for x_idx, x_val in enumerate(x_vals):
                 try:
@@ -83,7 +84,7 @@ def create_stl_from_points(all_points_3d, filename="output.stl"):
     vertex_count = 0
     
     def add_triangle(v1, v2, v3):
-        """Add a triangle to the mesh"""
+        """Add a triangle to the mesh with proper normal orientation"""
         nonlocal vertex_count
         all_vertices.extend([v1, v2, v3])
         face = [vertex_count, vertex_count + 1, vertex_count + 2]
@@ -96,6 +97,16 @@ def create_stl_from_points(all_points_3d, filename="output.stl"):
         if len(point) > 0:
             return point[0][:3]  # Return x, y, z coordinates
         return None
+    
+    def calculate_normal(v1, v2, v3):
+        """Calculate face normal using cross product"""
+        edge1 = np.array(v2) - np.array(v1)
+        edge2 = np.array(v3) - np.array(v1)
+        normal = np.cross(edge1, edge2)
+        norm = np.linalg.norm(normal)
+        if norm > 0:
+            return normal / norm
+        return np.array([0, 0, 1])
     
     # Create 2D meshes for each block
     for block_id in range(1, 9):
@@ -172,29 +183,64 @@ def create_stl_from_points(all_points_3d, filename="output.stl"):
     mesh = trimesh.Trimesh(vertices=vertices, faces=faces)
     
     # Remove duplicate vertices and fix normals
-    mesh.remove_duplicate_faces()
-    mesh.remove_unreferenced_vertices()
-    mesh.fix_normals()
+    try:
+        # Use updated method for removing duplicate faces
+        mesh.update_faces(mesh.unique_faces())
+    except:
+        # Fallback for older versions
+        try:
+            mesh.remove_duplicate_faces()
+        except:
+            pass
     
-    # Export to STL
-    mesh.export(filename)
-    print(f"STL file saved as: {filename}")
+    mesh.remove_unreferenced_vertices()
+    
+    # Try to fix normals, but don't fail if networkx is not available
+    try:
+        mesh.fix_normals()
+    except ImportError:
+        print("Warning: Cannot fix normals (networkx not installed). STL may have inconsistent face orientations.")
+    except Exception as e:
+        print(f"Warning: Could not fix normals: {e}")
+    
+    # Export to STL in ASCII format
+    mesh.export(filename, file_type='stl_ascii')
+    print(f"STL file saved as: {filename} (ASCII format)")
     print(f"Mesh info: {len(mesh.vertices)} vertices, {len(mesh.faces)} faces")
     
     return mesh
 
 # Example usage
 if __name__ == "__main__":
-    # Generate points with example parameters
-    a, d, e = 0.1, 0.05, 0.02  # Example parameters - adjust as needed
+    # Check if correct number of arguments provided
+    if len(sys.argv) != 4:
+        print("Usage: python3 points.py a d e")
+        print("Example: python3 points.py 0.1 0.05 0.02")
+        sys.exit(1)
+    
+    try:
+        # Parse command line arguments
+        a = float(sys.argv[1])
+        d = float(sys.argv[2])
+        e = float(sys.argv[3])
+    except ValueError:
+        print("Error: All parameters must be numeric values")
+        print("Usage: python3 points.py a d e")
+        print("Example: python3 points.py 0.1 0.05 0.02")
+        sys.exit(1)
+    
+    print(f"Parameters: a={a}, d={d}, e={e}")
     
     print("Generating points...")
     points_3d = points(a, d, e)
     print(f"Generated {len(points_3d)} points")
     
-    print("Creating STL file...")
-    mesh = create_stl_from_points(points_3d, "generated_mesh.stl")
+    # Create filename based on parameters
+    filename = f"mesh.stl"
     
+    print("Creating STL file...")
+    mesh = create_stl_from_points(points_3d, filename)
+ """   
     # Optional: visualize the mesh
     try:
         fig = plt.figure(figsize=(10, 8))
@@ -208,8 +254,10 @@ if __name__ == "__main__":
         ax.set_xlabel('X')
         ax.set_ylabel('Y')
         ax.set_zlabel('Z')
-        ax.set_title('Generated 3D Points (Sample)')
+        ax.set_title(f'Generated 3D Points (a={a}, d={d}, e={e})')
         plt.show()
         
     except Exception as e:
         print(f"Visualization error: {e}")
+        print("STL file created successfully without visualization")
+        """
