@@ -36,24 +36,25 @@ class GridConfig:
 
 def create_base_box(config):
     """Crea il parallelepipedo base con discretizzazione ottimale."""
-    x_center = -config.L / 2
-    y_center = config.TOTAL_SIZE / 2
-    z_center = config.TOTAL_SIZE / 2
+    # Centro in (0, 0, z) con una faccia in z=0 e l'altra in z=-L
+    x_center = 0
+    y_center = 0
+    z_center = -config.L / 2
     
     # Crea griglia di vertici strutturata
-    x_vals = np.linspace(-config.L, 0, config.n_x + 1)
-    y_vals = np.linspace(0, config.TOTAL_SIZE, config.n_yz + 1)
-    z_vals = np.linspace(0, config.TOTAL_SIZE, config.n_yz + 1)
+    x_vals = np.linspace(-config.TOTAL_SIZE / 2, config.TOTAL_SIZE / 2, config.n_yz + 1)
+    y_vals = np.linspace(-config.TOTAL_SIZE / 2, config.TOTAL_SIZE / 2, config.n_yz + 1)
+    z_vals = np.linspace(-config.L, 0, config.n_x + 1)
     
     vertices = []
     faces = []
     
     # Genera vertici e facce per ogni faccia del box
-    # Faccia frontale (x=0)
+    # Faccia superiore (z=0)
     offset = 0
     for i in range(config.n_yz + 1):
         for j in range(config.n_yz + 1):
-            vertices.append([0, y_vals[i], z_vals[j]])
+            vertices.append([x_vals[i], y_vals[j], 0])
     for i in range(config.n_yz):
         for j in range(config.n_yz):
             v0 = offset + i * (config.n_yz + 1) + j
@@ -62,11 +63,11 @@ def create_base_box(config):
             v3 = v2 + 1
             faces.extend([[v0, v1, v2], [v1, v3, v2]])
     
-    # Faccia posteriore (x=-L)
+    # Faccia inferiore (z=-L)
     offset = len(vertices)
     for i in range(config.n_yz + 1):
         for j in range(config.n_yz + 1):
-            vertices.append([-config.L, y_vals[i], z_vals[j]])
+            vertices.append([x_vals[i], y_vals[j], -config.L])
     for i in range(config.n_yz):
         for j in range(config.n_yz):
             v0 = offset + i * (config.n_yz + 1) + j
@@ -75,11 +76,11 @@ def create_base_box(config):
             v3 = v2 + 1
             faces.extend([[v0, v2, v1], [v1, v2, v3]])
     
-    # Faccia laterale Y- (y=0)
+    # Faccia laterale X- (x=-TOTAL_SIZE/2)
     offset = len(vertices)
     for i in range(config.n_x + 1):
         for j in range(config.n_yz + 1):
-            vertices.append([x_vals[i], 0, z_vals[j]])
+            vertices.append([-config.TOTAL_SIZE / 2, y_vals[j], z_vals[i]])
     for i in range(config.n_x):
         for j in range(config.n_yz):
             v0 = offset + i * (config.n_yz + 1) + j
@@ -88,11 +89,11 @@ def create_base_box(config):
             v3 = v2 + 1
             faces.extend([[v0, v2, v1], [v1, v2, v3]])
     
-    # Faccia laterale Y+ (y=TOTAL_SIZE)
+    # Faccia laterale X+ (x=TOTAL_SIZE/2)
     offset = len(vertices)
     for i in range(config.n_x + 1):
         for j in range(config.n_yz + 1):
-            vertices.append([x_vals[i], config.TOTAL_SIZE, z_vals[j]])
+            vertices.append([config.TOTAL_SIZE / 2, y_vals[j], z_vals[i]])
     for i in range(config.n_x):
         for j in range(config.n_yz):
             v0 = offset + i * (config.n_yz + 1) + j
@@ -101,11 +102,11 @@ def create_base_box(config):
             v3 = v2 + 1
             faces.extend([[v0, v1, v2], [v1, v3, v2]])
     
-    # Faccia laterale Z- (z=0)
+    # Faccia laterale Y- (y=-TOTAL_SIZE/2)
     offset = len(vertices)
     for i in range(config.n_x + 1):
         for j in range(config.n_yz + 1):
-            vertices.append([x_vals[i], y_vals[j], 0])
+            vertices.append([x_vals[j], -config.TOTAL_SIZE / 2, z_vals[i]])
     for i in range(config.n_x):
         for j in range(config.n_yz):
             v0 = offset + i * (config.n_yz + 1) + j
@@ -114,11 +115,11 @@ def create_base_box(config):
             v3 = v2 + 1
             faces.extend([[v0, v1, v2], [v1, v3, v2]])
     
-    # Faccia laterale Z+ (z=TOTAL_SIZE)
+    # Faccia laterale Y+ (y=TOTAL_SIZE/2)
     offset = len(vertices)
     for i in range(config.n_x + 1):
         for j in range(config.n_yz + 1):
-            vertices.append([x_vals[i], y_vals[j], config.TOTAL_SIZE])
+            vertices.append([x_vals[j], config.TOTAL_SIZE / 2, z_vals[i]])
     for i in range(config.n_x):
         for j in range(config.n_yz):
             v0 = offset + i * (config.n_yz + 1) + j
@@ -133,12 +134,12 @@ def create_base_box(config):
 
 def create_hole(config, i, j):
     """Crea un singolo foro alle coordinate (i, j)."""
-    x_center = -config.L / 2
-    hole_y_center = config.FRAME_THICKNESS + config.hole_spacing * (i + 0.5)
-    hole_z_center = config.FRAME_THICKNESS + config.hole_spacing * (j + 0.5)
+    z_center = -config.L / 2
+    hole_x_center = -config.TOTAL_SIZE / 2 + config.FRAME_THICKNESS + config.hole_spacing * (i + 0.5)
+    hole_y_center = -config.TOTAL_SIZE / 2 + config.FRAME_THICKNESS + config.hole_spacing * (j + 0.5)
     
-    hole = trimesh.creation.box(extents=[config.L + 0.1, config.hole_size, config.hole_size])
-    hole.apply_translation([x_center, hole_y_center, hole_z_center])
+    hole = trimesh.creation.box(extents=[config.hole_size, config.hole_size, config.L + 0.1])
+    hole.apply_translation([hole_x_center, hole_y_center, z_center])
     return hole
 
 def clean_mesh(mesh):
@@ -184,21 +185,21 @@ def generate_csg_grid(config):
 # GENERAZIONE METODO MANUALE
 # ============================================================================
 
-def create_wall_component(config, y_start, y_end, z_start, z_end):
+def create_wall_component(config, x_start, x_end, y_start, y_end):
     """Crea un componente rettangolare della griglia."""
-    if y_start >= y_end or z_start >= z_end:
+    if x_start >= x_end or y_start >= y_end:
         return None
     
     try:
-        width = config.L
+        width = x_end - x_start
         height = y_end - y_start
-        depth = z_end - z_start
+        depth = config.L
         
         box = trimesh.creation.box(extents=[width, height, depth])
         
-        center_x = -config.L / 2
+        center_x = (x_start + x_end) / 2
         center_y = (y_start + y_end) / 2
-        center_z = (z_start + z_end) / 2
+        center_z = -config.L / 2
         
         box.apply_translation([center_x, center_y, center_z])
         return box
@@ -212,24 +213,24 @@ def generate_manual_grid(config):
     components = []
     
     # Cornice esterna
-    components.append(create_wall_component(config, 0, config.TOTAL_SIZE, 0, config.FRAME_THICKNESS))
-    components.append(create_wall_component(config, 0, config.TOTAL_SIZE, config.TOTAL_SIZE - config.FRAME_THICKNESS, config.TOTAL_SIZE))
-    components.append(create_wall_component(config, 0, config.FRAME_THICKNESS, config.FRAME_THICKNESS, config.TOTAL_SIZE - config.FRAME_THICKNESS))
-    components.append(create_wall_component(config, config.TOTAL_SIZE - config.FRAME_THICKNESS, config.TOTAL_SIZE, config.FRAME_THICKNESS, config.TOTAL_SIZE - config.FRAME_THICKNESS))
+    components.append(create_wall_component(config, -config.TOTAL_SIZE/2, config.TOTAL_SIZE/2, -config.TOTAL_SIZE/2, -config.TOTAL_SIZE/2 + config.FRAME_THICKNESS))
+    components.append(create_wall_component(config, -config.TOTAL_SIZE/2, config.TOTAL_SIZE/2, config.TOTAL_SIZE/2 - config.FRAME_THICKNESS, config.TOTAL_SIZE/2))
+    components.append(create_wall_component(config, -config.TOTAL_SIZE/2, -config.TOTAL_SIZE/2 + config.FRAME_THICKNESS, -config.TOTAL_SIZE/2 + config.FRAME_THICKNESS, config.TOTAL_SIZE/2 - config.FRAME_THICKNESS))
+    components.append(create_wall_component(config, config.TOTAL_SIZE/2 - config.FRAME_THICKNESS, config.TOTAL_SIZE/2, -config.TOTAL_SIZE/2 + config.FRAME_THICKNESS, config.TOTAL_SIZE/2 - config.FRAME_THICKNESS))
     
-    # Pareti orizzontali
+    # Pareti orizzontali (lungo Y)
     for i in range(config.n - 1):
-        z_center = config.FRAME_THICKNESS + (i + 1) * config.hole_spacing
-        z_start = z_center - config.WALL_THICKNESS / 2
-        z_end = z_center + config.WALL_THICKNESS / 2
-        components.append(create_wall_component(config, config.FRAME_THICKNESS, config.TOTAL_SIZE - config.FRAME_THICKNESS, z_start, z_end))
-    
-    # Pareti verticali
-    for j in range(config.n - 1):
-        y_center = config.FRAME_THICKNESS + (j + 1) * config.hole_spacing
+        y_center = -config.TOTAL_SIZE/2 + config.FRAME_THICKNESS + (i + 1) * config.hole_spacing
         y_start = y_center - config.WALL_THICKNESS / 2
         y_end = y_center + config.WALL_THICKNESS / 2
-        components.append(create_wall_component(config, y_start, y_end, config.FRAME_THICKNESS, config.TOTAL_SIZE - config.FRAME_THICKNESS))
+        components.append(create_wall_component(config, -config.TOTAL_SIZE/2 + config.FRAME_THICKNESS, config.TOTAL_SIZE/2 - config.FRAME_THICKNESS, y_start, y_end))
+    
+    # Pareti verticali (lungo X)
+    for j in range(config.n - 1):
+        x_center = -config.TOTAL_SIZE/2 + config.FRAME_THICKNESS + (j + 1) * config.hole_spacing
+        x_start = x_center - config.WALL_THICKNESS / 2
+        x_end = x_center + config.WALL_THICKNESS / 2
+        components.append(create_wall_component(config, x_start, x_end, -config.TOTAL_SIZE/2 + config.FRAME_THICKNESS, config.TOTAL_SIZE/2 - config.FRAME_THICKNESS))
     
     # Filtra componenti None
     components = [c for c in components if c is not None]
@@ -291,7 +292,11 @@ def main():
             print(f"Errore: configurazione non valida (hole_size={config.hole_size:.3f})")
             return
         
-        filename = "HC.stl"
+        # Crea la cartella mesh se non esiste
+        import os
+        os.makedirs("mesh", exist_ok=True)
+        
+        filename = "mesh/HC.stl"
         
         # Tentativo 1: Metodo CSG
         mesh = generate_csg_grid(config)
@@ -299,7 +304,7 @@ def main():
         # Tentativo 2: Metodo manuale (se necessario)
         if mesh is None or not mesh.is_watertight:
             print("\nTentativo con metodo manuale...")
-            filename = "HCg_manual.stl"
+            filename = "mesh/HCg_manual.stl"
             mesh = generate_manual_grid(config)
         
         # Salva e mostra risultati

@@ -86,6 +86,36 @@ def visualize_grid(points):
     plt.show()
 
 
+def rotate_points(points, angle_degrees):
+    """
+    Ruota i punti attorno all'asse Z di un angolo specificato.
+    angle_degrees: angolo in gradi (0, 90, 180, 270)
+    """
+    angle_rad = np.deg2rad(angle_degrees)
+    cos_a = np.cos(angle_rad)
+    sin_a = np.sin(angle_rad)
+    
+    rotated_points = []
+    for point in points:
+        x = point["x"]
+        f = point["f"]
+        
+        # Rotazione 2D nel piano x-f
+        x_new = x * cos_a - f * sin_a
+        f_new = x * sin_a + f * cos_a
+        
+        rotated_point = {
+            "x": x_new,
+            "f": f_new,
+            "z": point["z"],
+            "x_idx": point["x_idx"],
+            "z_idx": point["z_idx"]
+        }
+        rotated_points.append(rotated_point)
+    
+    return rotated_points
+
+
 def create_stl_from_points(points, filename="face.stl"):
     """
     Crea un file STL da una griglia strutturata di punti.
@@ -168,9 +198,20 @@ L = 80.0
 
 points = generate_structured_points(a , b, c, L)
 
-# Crea il file STL
-create_stl_from_points(points)
+# Crea la cartella mesh se non esiste
+import os
+os.makedirs("mesh", exist_ok=True)
 
-# Visualizza i punti (opzionale)
-visualize_grid(points)
+# Crea 4 superfici ruotate di 0°, 90°, 180° e 270°
+angles = [0, 90, 180, 270]
+all_points = []
+
+for angle in angles:
+    rotated_points = rotate_points(points, angle)
+    filename = f"mesh/face_{angle}deg.stl"
+    create_stl_from_points(rotated_points, filename)
+    all_points.extend(rotated_points)
+
+# Visualizza tutti i punti insieme (opzionale)
+visualize_grid(all_points)
 
