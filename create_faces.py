@@ -2,10 +2,10 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
 import sys
+import os
 
 
 def generate_structured_points(a, d, e, L):
-    """Genera tutti i punti organizzati in 8 griglie strutturate."""
     R = 20
     l = 94
     dz = 80 - L + 0.01
@@ -37,7 +37,7 @@ def generate_structured_points(a, d, e, L):
 
     # Parametri griglia strutturata
     N_z = 50    # Sezioni lungo Z
-    N_x = 20    # Punti per sezione X per lato
+    N_x = 20    # Punti per sezione X 
     
     z_vals = np.linspace(0, L, N_z)
     
@@ -198,20 +198,17 @@ L = 80.0
 
 points = generate_structured_points(a , b, c, L)
 
-# Crea la cartella mesh se non esiste
-import os
 os.makedirs("mesh", exist_ok=True)
 
-# Crea 4 superfici ruotate di 0°, 90°, 180° e 270°
 angles = [0, 90, 180, 270]
 all_points = []
 
 for angle in angles:
     rotated_points = rotate_points(points, angle)
-    filename = f"mesh/face_{angle}deg.stl"
+    filename = f"mesh/face{angle//90}.stl"
     create_stl_from_points(rotated_points, filename)
     all_points.extend(rotated_points)
 
-# Visualizza tutti i punti insieme (opzionale)
+
 visualize_grid(all_points)
 
