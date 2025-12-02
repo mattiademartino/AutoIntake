@@ -145,8 +145,8 @@ def main():
         plot_performance()
         plt.close('all')  # Chiudi tutte le figure dopo il plot
 
-        if modulo < treeshold:
-            break
+        #if modulo < treeshold:
+        #    break
         a += alpha * gradient_a
         b += alpha * gradient_b
         c += alpha * gradient_c
