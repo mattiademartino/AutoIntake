@@ -18,10 +18,16 @@
 # SMARTA Simulation script                                                  #
 #############################################################################
 
+import sys
+import os
+
+# Aggiungi la cartella SMARTA_functions al path per importare rarfunc
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'SMARTA_functions'))
+
 from rarfunc import *
 
 
-def get_trasmission():
+def get_trasmission(verbose=True):
     mpicomm = Comm()
     universe = Universe()
 
@@ -36,14 +42,25 @@ def get_trasmission():
     universe.add(mpicomm, folder+'face1.stl', 0, 'wall') 
     universe.add(mpicomm, folder+'face2.stl', 0, 'wall') 
     universe.add(mpicomm, folder+'face3.stl', 0, 'wall') 
+    universe.add(mpicomm, folder+'HC_inlet.stl',  1, 'inlet') 
+    universe.add(mpicomm, folder+'output.stl', 2, 'output')
+
 
     folder = './Honeycombs/'
-    universe.add(mpicomm, folder+'HC.stl',   1,'wall')
+    universe.add(mpicomm, folder+'HC1.STL',   0,'wall')
+
+
+
+    #############################################################################
+    # Initialize universe                                                       #
+    #############################################################################
+
 
 
     universe.init(mpicomm)
 
-    rprint(mpicomm, 'Loaded a total of {N} triangles.'.format(N=universe.N))
+    if verbose:
+        rprint(mpicomm, 'Loaded a total of {N} triangles.'.format(N=universe.N))
 
     mpicomm.comm.Barrier()
 
@@ -62,18 +79,21 @@ def get_trasmission():
     filename = '/nobackup/st/parodi/Fmatrix.npy'
 
     if LOADFMATRIX == False:
-        rprint(mpicomm, 'Computing view factors matrix...')
+        if verbose:
+            rprint(mpicomm, 'Computing view factors matrix...')
         tic(mpicomm)
         F = view_factors(mpicomm, universe)
-        toc(mpicomm, 'View factor matrix computation')
+        if verbose:
+            toc(mpicomm, 'View factor matrix computation')
     else:
         if mpicomm.rank == 0:
             F = np.load(filename)
         else:
             F = None
 
-    rprint(mpicomm, 'Maximum value in F matrix is:  {val}'.format(val=np.max(F)))
-    rprint(mpicomm, 'Minimum value in F matrix is:  {val}'.format(val=np.min(F)))
+    if verbose:
+        rprint(mpicomm, 'Maximum value in F matrix is:  {val}'.format(val=np.max(F)))
+        rprint(mpicomm, 'Minimum value in F matrix is:  {val}'.format(val=np.min(F)))
 
     #############################################################################
     # Saving of view factor matrix to file for later use                        #
@@ -103,11 +123,13 @@ def get_trasmission():
     # Calculation of matrices F1 and F2                                         #
     #############################################################################
 
-    rprint(mpicomm, 'Computing F1 matrix...')
+    if verbose:
+        rprint(mpicomm, 'Computing F1 matrix...')
 
     F1 = compute_F1(mpicomm, universe, F)
 
-    rprint(mpicomm, 'Completed.')
+    if verbose:
+        rprint(mpicomm, 'Completed.')
 
     F2 = F
 
@@ -115,16 +137,18 @@ def get_trasmission():
     # Calculation of matrix M                                                   #
     #############################################################################
 
-    rprint(mpicomm, 'Computing M matrix...')
+    if verbose:
+        rprint(mpicomm, 'Computing M matrix...')
     tic(mpicomm)
 
     M = compute_M(mpicomm, universe)
 
-    toc(mpicomm, 'M matrix computation')
-    rprint(mpicomm, 'Maximum value in M matrix is:  {val}'.format(val=np.max(M)))
+    if verbose:
+        toc(mpicomm, 'M matrix computation')
+        rprint(mpicomm, 'Maximum value in M matrix is:  {val}'.format(val=np.max(M)))
 
-
-    rprint(mpicomm, 'Computing E matrix...')
+    if verbose:
+        rprint(mpicomm, 'Computing E matrix...')
 
     E = compute_E(mpicomm, universe)
 
@@ -135,7 +159,8 @@ def get_trasmission():
     if mpicomm.rank == 0:
         tic(mpicomm)
         b = np.dot(M * F2, E)
-        print('Solving the linear matrix equation...')
+        if verbose:
+            print('Solving the linear matrix equation...')
         try:
             B = np.linalg.solve(F1, b)
             # B, lstsqresiduals, lstsqrank, lstsqs = np.linalg.lstsq(F1, b)
@@ -143,7 +168,8 @@ def get_trasmission():
         except np.linalg.LinAlgError as e:
             print(str(e))
             raise
-        toc(mpicomm, 'Solving the linear matrix equation')
+        if verbose:
+            toc(mpicomm, 'Solving the linear matrix equation')
     else:
         B = None
     mpicomm.comm.Barrier()
@@ -151,7 +177,8 @@ def get_trasmission():
 
     if mpicomm.rank == 0:
         bcheck = np.dot(F1, B)
-        print('Completed. Checking if solution is exact: {res}'.format(res = np.allclose(bcheck, b)))
+        if verbose:
+            print('Completed. Checking if solution is exact: {res}'.format(res = np.allclose(bcheck, b)))
 
 
 

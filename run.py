@@ -1,13 +1,15 @@
 import sys
 import subprocess
 import numpy as np
-from SMARTA import get_trasmission
-from stl import mesh
-from create_faces import generate_structured_points, get_inlet, get_output
 import matplotlib.pyplot as plt
 import pandas as pd
 import os
 import csv
+from stl import mesh
+
+
+from SMARTA import get_trasmission
+from create_faces import generate_structured_points, get_inlet, get_output
 
 alpha=0.01
 dx=0.001
@@ -62,14 +64,14 @@ def calculate_L():
 
 def evaluate_transmission(a, b, c, L):
 
-    present , w = extract_from_csv()
+    present , w = extract_from_csv(a, b, c)
 
     if present:
         return w
 
-    generate_structured_points(a, b, c, L)
+    generate_structured_points(a, b, c, L, verbose=False)
 
-    return get_trasmission()
+    return get_trasmission(verbose=False)
 
 def archive_all(a,b,c,d,  filename="result.csv"):
 
@@ -103,12 +105,12 @@ def extract_from_csv(a, b, c, filename="result.csv"):
                 return True, float(row[3])
 
 def main():
-    get_inlet()
-    get_output()
+    get_inlet(verbose=False)
+    # get_output richiede points e L come parametri, viene chiamata da generate_structured_points
+    iteration = 0
     while True:
         print(f"Iterazione con a={a}, b={b}, c={c}, numero di iterazione={iteration}")
         L= L_intake - calculate_L()
-        iteration = 0
 
         W_0 = evaluate_transmission(a, b, c, L)
         W_x = evaluate_transmission(a + dx, b, c, L)
