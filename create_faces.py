@@ -40,8 +40,8 @@ def generate_structured_points(a, d, e, L, verbose=False):
         return disp(a, d, e, z, x) + rho(a, d, e, z) / np.sqrt(2)
 
     # Parametri griglia strutturata
-    N_z = 50    # Sezioni lungo Z
-    N_x = 20    # Punti per sezione X 
+    N_z = 10    # Sezioni lungo Z
+    N_x = 5    # Punti per sezione X 
     
     z_vals = np.linspace(0, L, N_z)
     
@@ -120,162 +120,108 @@ def rotate_points(points, angle_degrees):
     return rotated_points
 
 
-def get_output(points, L, filename="/mesh/outlet.stl", target_edge_size=5.0, verbose=False):
+def get_outlet(L, R = 20, filename="mesh/outlet.stl", target_edge_size=5.0, verbose=False):
     """
-    Crea una mesh circolare che chiude l'estremità a z=L.
-    I punti a z=L formano un cerchio, questa funzione crea triangoli
-    quanto più isosceli rettangoli possibili.
+    Crea una mesh circolare (disco) centrata in (0,0,L) e raggio R sul piano z=L.
+    La mesh è composta da triangoli isosceli rettangoli ottenuti dividendo quadrati regolari.
     
     Args:
-        points: lista di punti con attributi x, f, z
-        L: valore di z dove si trova il cerchio
-        filename: nome del file STL da creare
-        target_edge_size: dimensione target dei lati dei triangoli
-        verbose: se True, stampa messaggi di output
+        L: coordinata z del piano del cerchio
+        R: raggio del cerchio
+        filename: percorso del file STL di output (ASCII)
+        target_edge_size: lunghezza target dell'ipotenusa dei triangoli isosceli rettangoli
+        verbose: se True stampa informazioni di debug
+    
+    Restituisce:
+        triangles: lista di triangoli, ciascuno come tuple di 3 vertici (x,y,z)
     """
-    # Estrai i punti a z=L
-    edge_points = [p for p in points if abs(p["z"] - L) < 1e-6]
+    if R <= 0:
+        raise ValueError("R deve essere > 0")
+    if target_edge_size <= 0:
+        raise ValueError("target_edge_size deve essere > 0")
     
-    if len(edge_points) == 0:
-        if verbose:
-            print(f"Nessun punto trovato a z={L}")
-        return []
-    
-    # Ordina i punti in senso orario/antiorario attorno al centro
-    coords = np.array([[p["x"], p["f"]] for p in edge_points])
-    
-    # Calcola il centro
-    center_x = np.mean(coords[:, 0])
-    center_y = np.mean(coords[:, 1])
-    center = np.array([center_x, center_y])
-    
-    # Calcola angoli rispetto al centro
-    angles = np.arctan2(coords[:, 1] - center_y, coords[:, 0] - center_x)
-    sorted_indices = np.argsort(angles)
-    sorted_coords = coords[sorted_indices]
-    
-    # Calcola il raggio medio
-    radius = np.mean(np.linalg.norm(sorted_coords - center, axis=1))
-    
-    # Calcola quanti anelli radiali servono per avere triangoli di dimensione target
-    n_rings = max(1, int(radius / target_edge_size))
-    
+    # cateto 's' tale che ipotenusa = target_edge_size -> s * sqrt(2) = target_edge_size
+    s = target_edge_size / np.sqrt(2.0)
+    if s <= 0:
+        raise ValueError("Intervallo di griglia non valido (s <= 0)")
+
+    # creare griglia di quadrati che copre [-R, R] x [-R, R]
+    xs = np.arange(-R, R + s/2, s)  # +s/2 per includere bordo
+    ys = np.arange(-R, R + s/2, s)
+
     triangles = []
+
+    # per ogni cella quadrata generiamo due triangoli isosceli rettangoli
+    for i in range(len(xs) - 1):
+        for j in range(len(ys) - 1):
+            x0, x1 = xs[i], xs[i+1]
+            y0, y1 = ys[j], ys[j+1]
+
+            # quattro vertici del quadrato (in piano z = L)
+            v00 = (x0, y0, L)
+            v10 = (x1, y0, L)
+            v01 = (x0, y1, L)
+            v11 = (x1, y1, L)
+
+            # due triangoli (diagonale v00-v11)
+            tri1 = (v00, v10, v11)  # (x0,y0),(x1,y0),(x1,y1)
+            tri2 = (v00, v11, v01)  # (x0,y0),(x1,y1),(x0,y1)
+
+            # includi il triangolo se il suo centroide è all'interno del raggio R
+            def centroid_inside(tri):
+                cx = (tri[0][0] + tri[1][0] + tri[2][0]) / 3.0
+                cy = (tri[0][1] + tri[1][1] + tri[2][1]) / 3.0
+                return (cx*cx + cy*cy) <= (R + 1e-12)**2
+
+            if centroid_inside(tri1):
+                triangles.append(tri1)
+            if centroid_inside(tri2):
+                triangles.append(tri2)
+
+    if verbose:
+        print(f"Generati {len(triangles)} triangoli isosceli rettangoli (centro in z={L}, raggio={R}).")
+
+    # raccogli vertici unici in una mappa per scrivere file STL
     vertices_map = {}
-    
-    # Funzione helper per aggiungere vertice
-    def add_vertex(x, y, z):
-        key = (round(x, 6), round(y, 6), round(z, 6))
-        if key not in vertices_map:
-            vertices_map[key] = (x, y, z)
-        return key
-    
-    # Crea anelli concentrici
-    n_edge_points = len(sorted_coords)
-    
-    # Vertice centrale
-    center_key = add_vertex(center_x, center_y, L)
-    
-    # Crea vertici per ogni anello
-    for ring in range(1, n_rings + 1):
-        ring_radius = radius * (ring / n_rings)
-        
-        for i in range(n_edge_points):
-            angle = angles[sorted_indices[i]]
-            x = center_x + ring_radius * np.cos(angle)
-            y = center_y + ring_radius * np.sin(angle)
-            add_vertex(x, y, L)
-    
-    # Aggiungi i punti del bordo esterno (quelli originali)
-    for coord in sorted_coords:
-        add_vertex(coord[0], coord[1], L)
-    
-    # Crea lista ordinata di vertici per ogni anello
-    rings_vertices = []
-    
-    # Anello 0: solo il centro
-    rings_vertices.append([center_key])
-    
-    # Anelli intermedi
-    for ring in range(1, n_rings + 1):
-        ring_radius = radius * (ring / n_rings)
-        ring_verts = []
-        for i in range(n_edge_points):
-            angle = angles[sorted_indices[i]]
-            x = center_x + ring_radius * np.cos(angle)
-            y = center_y + ring_radius * np.sin(angle)
-            key = (round(x, 6), round(y, 6), round(L, 6))
-            ring_verts.append(key)
-        rings_vertices.append(ring_verts)
-    
-    # Anello esterno (punti originali)
-    outer_ring = []
-    for coord in sorted_coords:
-        key = (round(coord[0], 6), round(coord[1], 6), round(L, 6))
-        outer_ring.append(key)
-    rings_vertices.append(outer_ring)
-    
-    # Crea triangoli tra anelli
-    for ring_idx in range(len(rings_vertices) - 1):
-        inner_ring = rings_vertices[ring_idx]
-        outer_ring = rings_vertices[ring_idx + 1]
-        
-        if len(inner_ring) == 1:
-            # Dal centro al primo anello: triangoli semplici
-            center_v = inner_ring[0]
-            for i in range(len(outer_ring)):
-                v1 = outer_ring[i]
-                v2 = outer_ring[(i + 1) % len(outer_ring)]
-                triangles.append((center_v, v1, v2))
-        else:
-            # Tra anelli: crea quad e dividili in triangoli
-            for i in range(len(inner_ring)):
-                v1_inner = inner_ring[i]
-                v2_inner = inner_ring[(i + 1) % len(inner_ring)]
-                v1_outer = outer_ring[i]
-                v2_outer = outer_ring[(i + 1) % len(outer_ring)]
-                
-                # Due triangoli per quad
-                triangles.append((v1_inner, v1_outer, v2_outer))
-                triangles.append((v1_inner, v2_outer, v2_inner))
-    
-    # Scrivi il file STL
-    with open(filename, 'w') as f:
+    def key_of(v):
+        return (round(v[0], 6), round(v[1], 6), round(v[2], 6))
+    for tri in triangles:
+        for v in tri:
+            k = key_of(v)
+            if k not in vertices_map:
+                vertices_map[k] = v
+
+    # funzione per calcolare normale
+    def triangle_normal(a, b, c):
+        a = np.array(a); b = np.array(b); c = np.array(c)
+        e1 = b - a
+        e2 = c - a
+        n = np.cross(e1, e2)
+        norm = np.linalg.norm(n)
+        if norm == 0:
+            return (0.0, 0.0, 1.0)
+        n = n / norm
+        return (float(n[0]), float(n[1]), float(n[2]))
+
+    # scrivi STL ASCII
+    with open(filename, "w") as f:
         f.write("solid circular_cap\n")
-        
-        for tri_keys in triangles:
-            v1 = vertices_map[tri_keys[0]]
-            v2 = vertices_map[tri_keys[1]]
-            v3 = vertices_map[tri_keys[2]]
-            
-            # Calcola la normale del triangolo
-            edge1 = np.array([v2[0] - v1[0], v2[1] - v1[1], v2[2] - v1[2]])
-            edge2 = np.array([v3[0] - v1[0], v3[1] - v1[1], v3[2] - v1[2]])
-            normal = np.cross(edge1, edge2)
-            
-            # Normalizza
-            norm_length = np.linalg.norm(normal)
-            if norm_length > 0:
-                normal = normal / norm_length
-            else:
-                normal = np.array([0, 0, 1])
-            
-            # Scrivi il triangolo
-            f.write(f"  facet normal {normal[0]:.6e} {normal[1]:.6e} {normal[2]:.6e}\n")
+        for tri in triangles:
+            v1, v2, v3 = tri
+            nx, ny, nz = triangle_normal(v1, v2, v3)
+            f.write(f"  facet normal {nx:.6e} {ny:.6e} {nz:.6e}\n")
             f.write("    outer loop\n")
             f.write(f"      vertex {v1[0]:.6e} {v1[1]:.6e} {v1[2]:.6e}\n")
             f.write(f"      vertex {v2[0]:.6e} {v2[1]:.6e} {v2[2]:.6e}\n")
             f.write(f"      vertex {v3[0]:.6e} {v3[1]:.6e} {v3[2]:.6e}\n")
             f.write("    endloop\n")
             f.write("  endfacet\n")
-        
         f.write("endsolid circular_cap\n")
-    
-    if verbose:
-        print(f"File STL cap creato: {filename}")
-        print(f"Numero di triangoli: {len(triangles)}")
-    return triangles
 
+    if verbose:
+        print(f"File STL scritto: {filename}")
+
+    return triangles
 
 def create_stl_from_points(points, filename="face.stl", verbose=False):
     """
@@ -438,28 +384,29 @@ def get_inlet(input_stl_path: str = "Honeycombs/HC1.STL",
     # Ritorna anche z_max
     return output_path
 
-# Parametri di esempio
-a = 0.0
-b = 0.0
-c = 0.0
-L = 80.0
+if __name__ == "__main__":
+    # Parametri di esempio
+    a = 0.0
+    b = 0.0
+    c = 0.0
+    L = 80.0
 
-points = generate_structured_points(a , b, c, L)
+    points = generate_structured_points(a , b, c, L)
 
-os.makedirs("mesh", exist_ok=True)
+    os.makedirs("mesh", exist_ok=True)
 
-angles = [0, 90, 180, 270]
-all_points = []
+    angles = [0, 90, 180, 270]
+    all_points = []
 
-for angle in angles:
-    rotated_points = rotate_points(points, angle)
-    filename = f"mesh/face{angle//90}.stl"
-    create_stl_from_points(rotated_points, filename)
-    all_points.extend(rotated_points)
+    for angle in angles:
+        rotated_points = rotate_points(points, angle)
+        filename = f"mesh/face{angle//90}.stl"
+        create_stl_from_points(rotated_points, filename)
+        all_points.extend(rotated_points)
 
 
-visualize_grid(all_points)
+    visualize_grid(all_points)
 
-#get_inlet("Honeycombs/HC.STL")
-get_inlet()
+    #get_inlet("Honeycombs/HC.STL")
+    get_inlet()
 

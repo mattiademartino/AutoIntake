@@ -20,11 +20,19 @@
 
 import sys
 import os
+import signal
 
 # Aggiungi la cartella SMARTA_functions al path per importare rarfunc
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'SMARTA_functions'))
 
 from rarfunc import *
+
+# Handler per permettere l'interruzione con Ctrl+C in MPI
+def signal_handler(sig, frame):
+    print('\n\nInterruzione richiesta (Ctrl+C). Terminazione in corso...')
+    sys.exit(0)
+
+signal.signal(signal.SIGINT, signal_handler)
 
 
 def get_trasmission(verbose=True):
@@ -43,7 +51,7 @@ def get_trasmission(verbose=True):
     universe.add(mpicomm, folder+'face2.stl', 0, 'wall') 
     universe.add(mpicomm, folder+'face3.stl', 0, 'wall') 
     universe.add(mpicomm, folder+'HC_inlet.stl',  1, 'inlet') 
-    universe.add(mpicomm, folder+'output.stl', 2, 'output')
+    universe.add(mpicomm, folder+'outlet.stl', 2, 'output')
 
 
     folder = './Honeycombs/'
@@ -66,7 +74,7 @@ def get_trasmission(verbose=True):
 
     #############################################################################
     universe.prop(0, T=300.0)
-    universe.prop(1, S=2.0, n=1e16, T=800, m=4e-26, uhat=[0.0,-1.0,0.0])
+    universe.prop(1, S=2.0, n=1e16, T=800, m=4e-26, uhat=[0.0,0.0,1.0])
 
 
     mpicomm.comm.Barrier()
