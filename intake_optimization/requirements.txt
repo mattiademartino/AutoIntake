@@ -1,0 +1,17 @@
+numpy
+numpy-stl
+trimesh
+scipy
+matplotlib
+pandas
+scikit-optimize
+
+# GPU acceleration (auto-installed on Colab; optional locally):
+# cupy-cuda12x
+
+# Legacy MPI backend (not needed for GPU/Colab):
+# mpi4py
+
+# Optional — for RL experiments:
+# gymnasium
+# stable-baselines3
