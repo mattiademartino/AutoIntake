@@ -88,8 +88,10 @@ N_INITIAL_POINTS: int = 10    # Random exploration phase
 N_BO_ITERATIONS: int = 50     # Bayesian optimization iterations
 TOTAL_BUDGET: int = N_INITIAL_POINTS + N_BO_ITERATIONS
 
-# Penalty value assigned when simulation fails or constraints are violated
-PENALTY_VALUE: float = 0.0
+# Penalty value assigned when simulation fails or constraints are violated.
+# Must be worse (lower) than any feasible flux so that skopt (which sees
+# -flux) never prefers infeasible points.
+PENALTY_VALUE: float = -1e30
 
 # Noise estimate for the GP (SMARTA is deterministic for same mesh, but
 # mesh discretisation introduces small numerical noise)
